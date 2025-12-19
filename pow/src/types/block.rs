@@ -2,11 +2,12 @@ use core::fmt;
 
 use bincode::config;
 use chrono::{DateTime, Local};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::types::{subtypes::Hash256, transaction::Transaction};
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     //header 
     pub timestamp: Option<DateTime<Local>>,

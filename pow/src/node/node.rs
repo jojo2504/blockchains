@@ -1,17 +1,42 @@
 use std::{collections::HashSet, error::Error, os::unix::net::SocketAddr, sync::Arc};
-use futures::{StreamExt};
+use futures::StreamExt;
 use libp2p::{Multiaddr, PeerId, noise, ping, swarm::SwarmEvent, tcp, yamux};
 use num_bigint::BigUint;
-use rand::rand_core::block;
-use tarpc::{context, server::{self, Channel}};
+use tarpc::context;
 use tokio::sync::{Mutex, RwLock};
 use tracing_subscriber::EnvFilter;
 
-use crate::{blockchain::{self, blockchain::Blockchain}, consensus::{consensus::{Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob, transaction::Transaction}};
+use crate::{blockchain::blockchain::Blockchain, consensus::{consensus::{Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob}};
 
 #[tarpc::service]
-trait NodeRpc {
+pub trait NodeRpc {
     async fn get_mining_job() -> MiningJob;
+    async fn submit_block(block: Block) -> bool;
+}
+
+#[derive(Clone)]
+pub struct NodeRpcServer {
+    pub node: Arc<Node>,
+}
+
+impl NodeRpc for NodeRpcServer {
+    async fn get_mining_job(self, _: context::Context) -> MiningJob {
+        let node = (*self.node).clone();
+        let blockchain = node.blockchain.read().await;
+        let last_block = blockchain.last_block();
+        MiningJob {
+            parent_block_hash: last_block.hash,
+            difficulty: node.consensus.read().await.state.difficulty.target.clone(),
+            transactions: node.mempool.read().await.pool.to_vec(),
+            target_block_time: TARGET_BLOCK_TIME,
+            height: node.blockchain.read().await.blocks.len() as u64,
+        }
+    }
+
+    async fn submit_block(self, _: context::Context, block: Block) -> bool {
+        let node = (*self.node).clone();
+        true
+    }
 }
 
 #[derive(Clone)]
@@ -48,20 +73,6 @@ pub struct Node {
        Node identity
     ======================== */
     pub node_id: PeerId,
-}
-
-impl NodeRpc for Node {
-    async fn get_mining_job(self, _: context::Context) -> MiningJob {
-        let blockchain = self.blockchain.read().await;
-        let last_block = blockchain.last_block();
-        MiningJob {
-            parent_block_hash: last_block.hash,
-            difficulty: self.consensus.read().await.state.difficulty.target.clone(),
-            transactions: self.mempool.read().await.pool.to_vec(),
-            target_block_time: TARGET_BLOCK_TIME,
-            height: self.blockchain.read().await.blocks.len() as u64,
-        }
-    }
 }
 
 impl Node {
@@ -114,16 +125,5 @@ impl Node {
         });
 
         Ok(())
-    }
-
-    pub async fn start_rcp(node: Node) {
-        let (client_transport, server_transport) = tarpc::transport::channel::unbounded();
-        let server = server::BaseChannel::with_defaults(server_transport);
-        tokio::spawn(
-            server.execute(node.serve())
-                // Handle all requests concurrently.
-                .for_each(|response| async move {
-                    tokio::spawn(response);
-                }));
     }
 }
