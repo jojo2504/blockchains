@@ -88,7 +88,6 @@ impl Node {
         let (events, _) = broadcast::channel(1024);
         let mut genesis = Block::new(vec![], None);
         genesis.hash = genesis.calculate_hash();
-        let _ = events.send(NodeEvent::NewBlock(genesis.clone()));
 
         Self {
             blockchain: Arc::new(RwLock::new(Blockchain::new(genesis))),

@@ -10,6 +10,7 @@ pub struct BlockchainViewer {
     offset: egui::Vec2,
     is_dragging: bool,
     selected_block: Option<usize>,
+    zoom: f32,
 }
 
 impl BlockchainViewer {
@@ -20,14 +21,15 @@ impl BlockchainViewer {
             offset: egui::Vec2::new(50.0, 0.0),
             is_dragging: false,
             selected_block: None,
+            zoom: 1.0,
         }
     }
 
     fn get_block_position(&self, height: usize, available_rect: egui::Rect) -> egui::Pos2 {
-        let block_width = 180.0;
-        let block_spacing = 100.0;
+        let block_width = 180.0 * self.zoom;
+        let block_spacing = 100.0 * self.zoom;
         let total_block_width = block_width + block_spacing;
-        let row_height = 300.0; // Height between rows
+        let row_height = 300.0 * self.zoom;
         
         let row = height / 10;
         let col = height % 10;
@@ -46,7 +48,7 @@ impl BlockchainViewer {
     }
 
     fn draw_block(&self, ui: &mut egui::Ui, block: &Block, height: usize, pos: egui::Pos2) -> egui::Response {
-        let block_size = egui::Vec2::new(180.0, 200.0);
+        let block_size = egui::Vec2::new(180.0 * self.zoom, 200.0 * self.zoom);
         let rect = egui::Rect::from_min_size(pos, block_size);
         
         let response = ui.allocate_rect(rect, egui::Sense::click());
@@ -70,41 +72,41 @@ impl BlockchainViewer {
                 egui::Color32::from_rgb(66, 153, 225)
             };
             
-            let stroke_width = if is_selected { 4.0 } else { 3.0 };
+            let stroke_width = if is_selected { 4.0 * self.zoom } else { 3.0 * self.zoom };
             
             // Main block body
             painter.rect(
-                rect.shrink(5.0),
-                8.0,
+                rect.shrink(5.0 * self.zoom),
+                8.0 * self.zoom,
                 color,
                 egui::Stroke::new(stroke_width, stroke_color),
                 egui::epaint::StrokeKind::Outside,
             );
             
             // Draw diagonal corners to make it look more like a 3D block
-            let corner_size = 15.0;
-            let top_left = rect.left_top() + egui::Vec2::new(5.0, 5.0);
-            let top_right = rect.right_top() + egui::Vec2::new(-5.0, 5.0);
+            let corner_size = 15.0 * self.zoom;
+            let top_left = rect.left_top() + egui::Vec2::new(5.0 * self.zoom, 5.0 * self.zoom);
+            let top_right = rect.right_top() + egui::Vec2::new(-5.0 * self.zoom, 5.0 * self.zoom);
             
             // Top bevel
             painter.line_segment(
                 [top_left, top_left + egui::Vec2::new(corner_size, -corner_size)],
-                egui::Stroke::new(2.0, egui::Color32::from_rgb(96, 165, 250))
+                egui::Stroke::new(2.0 * self.zoom, egui::Color32::from_rgb(96, 165, 250))
             );
             painter.line_segment(
                 [top_right, top_right + egui::Vec2::new(corner_size, -corner_size)],
-                egui::Stroke::new(2.0, egui::Color32::from_rgb(96, 165, 250))
+                egui::Stroke::new(2.0 * self.zoom, egui::Color32::from_rgb(96, 165, 250))
             );
             
             // Block content
-            let text_rect = rect.shrink(15.0);
+            let text_rect = rect.shrink(15.0 * self.zoom);
             
             // Height number (large)
             painter.text(
-                egui::Pos2::new(rect.center().x, text_rect.min.y + 15.0),
+                egui::Pos2::new(rect.center().x, text_rect.min.y + 15.0 * self.zoom),
                 egui::Align2::CENTER_TOP,
                 format!("#{}", height),
-                egui::FontId::proportional(24.0),
+                egui::FontId::proportional(24.0 * self.zoom),
                 egui::Color32::from_rgb(147, 197, 253),
             );
             
@@ -117,38 +119,38 @@ impl BlockchainViewer {
             };
             
             painter.text(
-                egui::Pos2::new(rect.center().x, text_rect.min.y + 45.0),
+                egui::Pos2::new(rect.center().x, text_rect.min.y + 45.0 * self.zoom),
                 egui::Align2::CENTER_TOP,
                 hash_display,
-                egui::FontId::monospace(10.0),
+                egui::FontId::monospace(10.0 * self.zoom),
                 egui::Color32::from_rgb(203, 213, 225),
             );
             
             // Nonce
             painter.text(
-                egui::Pos2::new(rect.center().x, text_rect.min.y + 75.0),
+                egui::Pos2::new(rect.center().x, text_rect.min.y + 75.0 * self.zoom),
                 egui::Align2::CENTER_TOP,
                 format!("Nonce: {}", block.nonce),
-                egui::FontId::proportional(11.0),
+                egui::FontId::proportional(11.0 * self.zoom),
                 egui::Color32::from_rgb(251, 191, 36),
             );
             
             // TX count
             painter.text(
-                egui::Pos2::new(rect.center().x, text_rect.min.y + 105.0),
+                egui::Pos2::new(rect.center().x, text_rect.min.y + 105.0 * self.zoom),
                 egui::Align2::CENTER_TOP,
                 format!("TX: {}", block.transactions.len()),
-                egui::FontId::proportional(12.0),
+                egui::FontId::proportional(12.0 * self.zoom),
                 egui::Color32::from_rgb(74, 222, 128),
             );
             
             // Timestamp if available
             if let Some(timestamp) = block.timestamp {
                 painter.text(
-                    egui::Pos2::new(rect.center().x, text_rect.min.y + 135.0),
+                    egui::Pos2::new(rect.center().x, text_rect.min.y + 135.0 * self.zoom),
                     egui::Align2::CENTER_TOP,
                     timestamp.format("%H:%M:%S").to_string(),
-                    egui::FontId::proportional(10.0),
+                    egui::FontId::proportional(10.0 * self.zoom),
                     egui::Color32::from_rgb(156, 163, 175),
                 );
             }
@@ -163,11 +165,11 @@ impl BlockchainViewer {
         // Draw arrow line
         painter.line_segment(
             [from_pos, to_pos],
-            egui::Stroke::new(3.0, egui::Color32::from_rgb(100, 116, 139)),
+            egui::Stroke::new(3.0 * self.zoom, egui::Color32::from_rgb(100, 116, 139)),
         );
         
         // Draw arrowhead
-        let arrow_size = 12.0;
+        let arrow_size = 12.0 * self.zoom;
         let direction = (to_pos - from_pos).normalized();
         let perpendicular = egui::Vec2::new(-direction.y, direction.x);
         
@@ -184,10 +186,10 @@ impl BlockchainViewer {
 
     fn draw_wrap_arrow(&self, ui: &mut egui::Ui, from_pos: egui::Pos2, to_pos: egui::Pos2) {
         let painter = ui.painter();
-        let stroke = egui::Stroke::new(3.0, egui::Color32::from_rgb(100, 116, 139));
+        let stroke = egui::Stroke::new(3.0 * self.zoom, egui::Color32::from_rgb(100, 116, 139));
         
         // Calculate the bend point (down then left/right)
-        let mid_y = from_pos.y + 80.0;
+        let mid_y = from_pos.y + 80.0 * self.zoom;
         let mid_point1 = egui::Pos2::new(from_pos.x, mid_y);
         let mid_point2 = egui::Pos2::new(to_pos.x, mid_y);
         
@@ -201,7 +203,7 @@ impl BlockchainViewer {
         painter.line_segment([mid_point2, to_pos], stroke);
         
         // Draw arrowhead pointing up
-        let arrow_size = 12.0;
+        let arrow_size = 12.0 * self.zoom;
         let arrow_tip = to_pos;
         let arrow_left = arrow_tip + egui::Vec2::new(-arrow_size / 2.0, arrow_size);
         let arrow_right = arrow_tip + egui::Vec2::new(arrow_size / 2.0, arrow_size);
@@ -373,10 +375,23 @@ impl BlockchainViewer {
 
 impl eframe::App for BlockchainViewer {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
-        // Drain events
-        while let Ok(event) = self.rx.try_recv() {
-            let NodeEvent::NewBlock(block) = event;
-            self.blocks.push(block);
+        // Drain ALL events without blocking
+        loop {
+            match self.rx.try_recv() {
+                Ok(NodeEvent::NewBlock(block)) => {
+                    self.blocks.push(block);
+                }
+                Err(broadcast::error::TryRecvError::Empty) => break,
+                Err(broadcast::error::TryRecvError::Lagged(skipped)) => {
+                    eprintln!("⚠️ Viewer lagged behind! Skipped {} blocks", skipped);
+                    // Continue draining to catch up
+                    continue;
+                }
+                Err(broadcast::error::TryRecvError::Closed) => {
+                    eprintln!("❌ Event channel closed");
+                    break;
+                }
+            }
         }
 
         // Show detail panel if a block is selected
@@ -402,6 +417,7 @@ impl eframe::App for BlockchainViewer {
                             self.selected_block = None;
                         }
                     }
+                    ui.label(format!("Zoom: {:.0}%", self.zoom * 100.0));
                     ui.label(format!("Blocks: {}", self.blocks.len()));
                 });
             });
@@ -411,7 +427,7 @@ impl eframe::App for BlockchainViewer {
             
             // Instructions
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("💡 Drag to pan • Click block to view details • 10 blocks per row")
+                ui.label(egui::RichText::new("💡 Drag to pan • Scroll to zoom • Click block to view details")
                     .size(12.0)
                     .color(egui::Color32::from_rgb(156, 163, 175)));
             });
@@ -422,6 +438,21 @@ impl eframe::App for BlockchainViewer {
             let available_rect = ui.available_rect_before_wrap();
             let canvas_response = ui.allocate_rect(available_rect, egui::Sense::click_and_drag());
             
+            // Handle zoom with mouse wheel
+            let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
+            if scroll_delta != 0.0 {
+                let zoom_delta = scroll_delta * 0.001;
+                let old_zoom = self.zoom;
+                self.zoom = (self.zoom + zoom_delta).clamp(0.3, 3.0);
+                
+                // Adjust offset to zoom towards mouse position
+                if let Some(mouse_pos) = ui.input(|i| i.pointer.hover_pos()) {
+                    let mouse_canvas_pos = mouse_pos - available_rect.min - self.offset;
+                    let zoom_factor = self.zoom / old_zoom;
+                    self.offset = self.offset - mouse_canvas_pos * (zoom_factor - 1.0);
+                }
+            }
+            
             // Handle dragging
             if canvas_response.dragged() && !canvas_response.clicked() {
                 self.offset += canvas_response.drag_delta();
@@ -430,8 +461,8 @@ impl eframe::App for BlockchainViewer {
                 self.is_dragging = false;
             }
             
-            let block_width = 180.0;
-            let block_spacing = 100.0;
+            let block_width = 180.0 * self.zoom;
+            let block_spacing = 100.0 * self.zoom;
             
             // Draw blocks in snake pattern (10 per row)
             for (height, block) in self.blocks.iter().enumerate() {
@@ -457,19 +488,19 @@ impl eframe::App for BlockchainViewer {
                         // Same row - horizontal arrow
                         let row_is_reversed = current_row % 2 == 1;
                         let arrow_start = if row_is_reversed {
-                            egui::Pos2::new(block_pos.x, block_pos.y + 100.0)
+                            egui::Pos2::new(block_pos.x, block_pos.y + 100.0 * self.zoom)
                         } else {
-                            egui::Pos2::new(block_pos.x + block_width, block_pos.y + 100.0)
+                            egui::Pos2::new(block_pos.x + block_width, block_pos.y + 100.0 * self.zoom)
                         };
                         let arrow_end = if row_is_reversed {
-                            egui::Pos2::new(next_pos.x + block_width, next_pos.y + 100.0)
+                            egui::Pos2::new(next_pos.x + block_width, next_pos.y + 100.0 * self.zoom)
                         } else {
-                            egui::Pos2::new(next_pos.x, next_pos.y + 100.0)
+                            egui::Pos2::new(next_pos.x, next_pos.y + 100.0 * self.zoom)
                         };
                         self.draw_horizontal_arrow(ui, arrow_start, arrow_end);
                     } else {
                         // New row - wrap arrow
-                        let arrow_start = egui::Pos2::new(block_pos.x + block_width / 2.0, block_pos.y + 200.0);
+                        let arrow_start = egui::Pos2::new(block_pos.x + block_width / 2.0, block_pos.y + 200.0 * self.zoom);
                         let arrow_end = egui::Pos2::new(next_pos.x + block_width / 2.0, next_pos.y);
                         self.draw_wrap_arrow(ui, arrow_start, arrow_end);
                     }

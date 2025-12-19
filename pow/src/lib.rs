@@ -14,7 +14,7 @@ use tarpc::{client, context, serde_transport, server::{self, Channel}, tokio_ser
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::{blockchain_viewer::BlockchainViewer, node::node::{Node, NodeRpc, NodeRpcClient, NodeRpcServer}, types::block::Block};
+use crate::{blockchain_viewer::BlockchainViewer, node::node::{Node, NodeEvent, NodeRpc, NodeRpcClient, NodeRpcServer}, types::block::Block};
 
 pub async fn start_rpc(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>> {
     let listener = TcpListener::bind("127.0.0.1:7000").await?;
@@ -76,6 +76,9 @@ pub fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {
     
     // Subscribe to events BEFORE spawning anything
     let rx = node.events.subscribe();
+
+    let genesis = node.blockchain.blocking_read().blocks[0].clone();
+    let _ = node.events.send(NodeEvent::NewBlock(genesis));
 
     // Spawn tokio runtime in background thread for async work
     let node_clone = node.clone();
