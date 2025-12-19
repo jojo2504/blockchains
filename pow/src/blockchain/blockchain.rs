@@ -1,4 +1,4 @@
-use crate::types::block::Block;
+use crate::{consensus::consensus::ADJUSTMENT_INTERVAL, types::block::Block};
 use core::fmt;
 
 /// The blockchain struct is a singleton
@@ -26,18 +26,6 @@ impl Blockchain {
         Self {
             blocks: vec![genesis],
         }
-    }
-
-    /// Add a new block to the blockchain, emptying pending transactions by commiting all of them
-    pub fn push(&mut self, block: Block) {
-        // let pending = take(&mut self.pending_tx);
-        
-        // for tx in &pending {
-        //     tx.commit();
-        // }
-
-        // self.blocks.push(block);
-        todo!()
     }
 
     pub fn verify_integrity(&self) -> bool {

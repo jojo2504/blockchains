@@ -7,12 +7,13 @@ mod node;
 
 use std::{error::Error, sync::Arc};
 
+use chrono::Utc;
 use futures::StreamExt;
 use tarpc::{client, context, serde_transport, server::{self, Channel}, tokio_serde::formats::Bincode};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::node::node::{Node, NodeRpcServer, NodeRpcClient, NodeRpc};
+use crate::{node::node::{Node, NodeRpc, NodeRpcClient, NodeRpcServer}, types::block::Block};
 
 pub async fn start_rpc(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>> {
     let listener = TcpListener::bind("127.0.0.1:7000").await?;
@@ -47,12 +48,25 @@ pub async fn mining(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>>
     let transport = serde_transport::new(framed, Bincode::default());
 
     let client = NodeRpcClient::new(client::Config::default(), transport).spawn();
-
-    let job = client.get_mining_job(context::current()).await?;
-
-    println!("Got mining job: {:?}", job);
-
-    Ok(())
+    
+    loop {
+        let job = client.get_mining_job(context::current()).await?;
+        println!("Got mining new job: {:?}", job);
+        let mut block = Block::new(job.transactions.clone(), Some(job.parent_block_hash));
+        let start = Utc::now();
+        loop {
+            block.hash = block.calculate_hash();
+            // println!("current hash: {:?} vs target: {:?}", block.hash, node.consensus.read().await.state.difficulty.target);
+            if node.consensus.read().await.verify_valid_block(node.blockchain.read().await.last_block(), &block) {
+                println!("mined new block: {:?}", block);
+                (*node).clone().push_block(block).await;
+                break;
+            }
+            block.nonce += 1;   
+        }
+        println!("time to find new block: {}", (Utc::now() - start).as_seconds_f32());
+        println!("total time windows: {}", (Utc::now() - node.consensus.read().await.state.start_window_time).as_seconds_f32());
+    }
 }
 
 pub async fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {

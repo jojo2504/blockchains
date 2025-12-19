@@ -1,4 +1,5 @@
 use std::{collections::HashSet, error::Error, os::unix::net::SocketAddr, sync::Arc};
+use chrono::{Date, Utc};
 use futures::StreamExt;
 use libp2p::{Multiaddr, PeerId, noise, ping, swarm::SwarmEvent, tcp, yamux};
 use num_bigint::BigUint;
@@ -6,7 +7,7 @@ use tarpc::context;
 use tokio::sync::{Mutex, RwLock};
 use tracing_subscriber::EnvFilter;
 
-use crate::{blockchain::blockchain::Blockchain, consensus::{consensus::{Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob}};
+use crate::{blockchain::blockchain::Blockchain, consensus::{self, consensus::{ADJUSTMENT_INTERVAL, Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob}};
 
 #[tarpc::service]
 pub trait NodeRpc {
@@ -81,7 +82,15 @@ impl Node {
             blockchain: Arc::new(RwLock::new(Blockchain::new())),
             mempool: Arc::new(RwLock::new(Mempool::new())),
             consensus: Arc::new(RwLock::new(Consensus::new(State {
-                difficulty: Difficulty { target: BigUint::from(1u64) },
+                difficulty: Difficulty { 
+                    target: BigUint::from_bytes_be(&[
+                        0x00, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff,
+                        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                    ]) 
+                },
+                start_window_time: Utc::now()
             }))),
             peers: Arc::new(Mutex::new(HashSet::new())),
             rpc_addr: SocketAddr::from_pathname("/tmp").unwrap(),
@@ -125,5 +134,20 @@ impl Node {
         });
 
         Ok(())
+    }
+
+    pub async fn push_block(&mut self, block: Block) {
+        self.blockchain.write().await.blocks.push(block);
+        println!("current blockchain height: {}", self.blockchain.read().await.blocks.len());
+        if self.blockchain.read().await.blocks.len() % (ADJUSTMENT_INTERVAL as usize) == 0 {
+            println!("adjusting...");
+            let stop_window_time = Utc::now();
+            {
+                let mut consensus_write = self.consensus.write().await;
+                consensus_write.state.adjust_difficulty(stop_window_time);
+                consensus_write.state.start_window_time = stop_window_time;
+            } // Write lock is dropped here
+            println!("new difficulty: {:?}", self.consensus.read().await.state.difficulty.target);
+        }
     }
 }
