@@ -4,7 +4,7 @@ use futures::StreamExt;
 use libp2p::{Multiaddr, PeerId, noise, ping, swarm::SwarmEvent, tcp, yamux};
 use num_bigint::BigUint;
 use tarpc::context;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, broadcast};
 use tracing_subscriber::EnvFilter;
 
 use crate::{blockchain::blockchain::Blockchain, consensus::{self, consensus::{ADJUSTMENT_INTERVAL, Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob}};
@@ -38,6 +38,11 @@ impl NodeRpc for NodeRpcServer {
         let node = (*self.node).clone();
         true
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum NodeEvent {
+    NewBlock(Block),
 }
 
 #[derive(Clone)]
@@ -74,12 +79,19 @@ pub struct Node {
        Node identity
     ======================== */
     pub node_id: PeerId,
+
+    pub events: broadcast::Sender<NodeEvent>,
 }
 
 impl Node {
     pub fn new() -> Self {
+        let (events, _) = broadcast::channel(1024);
+        let mut genesis = Block::new(vec![], None);
+        genesis.hash = genesis.calculate_hash();
+        let _ = events.send(NodeEvent::NewBlock(genesis.clone()));
+
         Self {
-            blockchain: Arc::new(RwLock::new(Blockchain::new())),
+            blockchain: Arc::new(RwLock::new(Blockchain::new(genesis))),
             mempool: Arc::new(RwLock::new(Mempool::new())),
             consensus: Arc::new(RwLock::new(Consensus::new(State {
                 difficulty: Difficulty { 
@@ -95,6 +107,7 @@ impl Node {
             peers: Arc::new(Mutex::new(HashSet::new())),
             rpc_addr: SocketAddr::from_pathname("/tmp").unwrap(),
             node_id: PeerId::random(),
+            events: events
         }
     }
 
@@ -137,8 +150,11 @@ impl Node {
     }
 
     pub async fn push_block(&mut self, block: Block) {
-        self.blockchain.write().await.blocks.push(block);
+        self.blockchain.write().await.blocks.push(block.clone());
         println!("current blockchain height: {}", self.blockchain.read().await.blocks.len());
+
+        let _ = self.events.send(NodeEvent::NewBlock(block));
+
         if self.blockchain.read().await.blocks.len() % (ADJUSTMENT_INTERVAL as usize) == 0 {
             println!("adjusting...");
             let stop_window_time = Utc::now();

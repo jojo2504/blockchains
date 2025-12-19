@@ -17,7 +17,7 @@ pub struct Block {
     
     //body
     pub merkle_root: Hash256,
-    transactions: Vec<Transaction>,
+    pub transactions: Vec<Transaction>,
 }
 
 impl fmt::Display for Block {

@@ -4,16 +4,17 @@ mod mempool;
 mod types;
 mod consensus;
 mod node;
+mod blockchain_viewer;
 
 use std::{error::Error, sync::Arc};
 
 use chrono::Utc;
-use futures::StreamExt;
+use futures::{StreamExt, future::ok};
 use tarpc::{client, context, serde_transport, server::{self, Channel}, tokio_serde::formats::Bincode};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::{node::node::{Node, NodeRpc, NodeRpcClient, NodeRpcServer}, types::block::Block};
+use crate::{blockchain_viewer::BlockchainViewer, node::node::{Node, NodeRpc, NodeRpcClient, NodeRpcServer}, types::block::Block};
 
 pub async fn start_rpc(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>> {
     let listener = TcpListener::bind("127.0.0.1:7000").await?;
@@ -69,31 +70,55 @@ pub async fn mining(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>>
     }
 }
 
-pub async fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {
+pub fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {
+    // Create node
     let node = Arc::new(Node::new());
+    
+    // Subscribe to events BEFORE spawning anything
+    let rx = node.events.subscribe();
 
-    // Spawn P2P
+    // Spawn tokio runtime in background thread for async work
     let node_clone = node.clone();
-    node_clone.startp2p().await?;
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
+            // Spawn P2P
+            let node_p2p = node_clone.clone();
+            tokio::spawn(async move {
+                if let Err(why) = node_p2p.startp2p().await {
+                    eprintln!("P2P failed: {:?}", why);
+                }
+            });
 
-    // Spawn RPC server
-    let node_clone = node.clone();
-    tokio::spawn(async move {
-        if let Err(why) = start_rpc(node_clone).await {
-            eprintln!("RPC server failed: {:?}", why);
-        }
+            // Spawn RPC server
+            let node_rpc = node_clone.clone();
+            tokio::spawn(async move {
+                if let Err(why) = start_rpc(node_rpc).await {
+                    eprintln!("RPC server failed: {:?}", why);
+                }
+            });
+
+            // Spawn mining loop
+            let node_mining = node_clone.clone();
+            tokio::spawn(async move {
+                if let Err(why) = mining(node_mining).await {
+                    eprintln!("Mining failed: {:?}", why);
+                }
+            });
+
+            // Keep runtime alive
+            futures::future::pending::<()>().await;
+        });
     });
 
-    // Spawn mining loop
-    let node_clone = node.clone();
-    tokio::spawn(async move {
-        if let Err(why) = mining(node_clone).await {
-            eprintln!("mining failed: {:?}", why);
-        }
-    });
-
-    // Node main can do other work or just await forever
-    futures::future::pending::<()>().await;
+    // Run GUI on main thread
+    let options = eframe::NativeOptions::default();
+    eframe::run_native(
+        "Blockchain Viewer",
+        options,
+        Box::new(move |_| Ok(Box::new(BlockchainViewer::new(rx)))),
+    ).unwrap();
 
     Ok(())
+    // .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
 }

@@ -2,9 +2,9 @@ use std::error::Error;
 
 use pow::start_node;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    start_node().await?;
-
-    Ok(())
+fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+    // Set Wayland backend before anything else
+    unsafe { std::env::set_var("WINIT_UNIX_BACKEND", "wayland") };
+    
+    start_node()
 }

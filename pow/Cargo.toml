@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 bincode = { version = "2.0.1", features = ["serde"] }
 chrono = { version = "0.4.42", features = ["serde"] }
+eframe = "0.33.3"
 float-ord = "0.3.2"
 futures = "0.3.31"
 libp2p = { version = "0.56", features = ["noise", "ping", "tcp", "tokio", "yamux"] }

@@ -20,9 +20,7 @@ impl fmt::Display for Blockchain {
 }
 
 impl Blockchain {
-    pub fn new() -> Self {
-        let mut genesis = Block::new(vec![], None);
-        genesis.hash = genesis.calculate_hash();
+    pub fn new(genesis: Block) -> Self {
         Self {
             blocks: vec![genesis],
         }
