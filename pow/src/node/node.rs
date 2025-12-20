@@ -1,4 +1,4 @@
-use std::{collections::HashSet, error::Error, os::unix::net::SocketAddr, sync::Arc};
+use std::{collections::HashSet, error::Error, os::unix::net::SocketAddr, sync::{Arc, OnceLock}};
 use chrono::Utc;
 use futures::StreamExt;
 use libp2p::{Multiaddr, PeerId, noise, ping, swarm::SwarmEvent, tcp, yamux};
@@ -35,8 +35,15 @@ impl NodeRpc for NodeRpcServer {
     }
 
     async fn submit_block(self, _: context::Context, block: Block) -> bool {
-        let node = (*self.node).clone();
-        true
+        // retest for valid block
+        if !self.node.consensus.read().await.verify_valid_block(self.node.blockchain.read().await.last_block(), &block) {
+            return false;   
+        }
+        if let Err(e) = self.node.push_block(block).await {
+            eprintln!("{}", e);
+            return false;
+        }
+        return true;
     }
 }
 
@@ -148,7 +155,7 @@ impl Node {
         Ok(())
     }
 
-    pub async fn push_block(&mut self, block: Block) {
+    pub async fn push_block(self: &Arc<Self>, block: Block) -> Result<(), Box<dyn Error + Send + Sync>> {
         println!("pushing new block");
         {
             let mut mempool_write = self.mempool.write().await;
@@ -173,6 +180,8 @@ impl Node {
             } // Write lock is dropped here
             println!("new difficulty: {:?}", self.consensus.read().await.state.difficulty.target);
         }
+
+        Ok(())
     }
 
     pub async fn create_tx(self: &Arc<Self>, tx: Transaction) {

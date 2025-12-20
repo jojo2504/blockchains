@@ -10,6 +10,7 @@ use std::{error::Error, sync::Arc, time::Duration};
 
 use chrono::Utc;
 use futures::{StreamExt, future::ok};
+use num_bigint::BigUint;
 use tarpc::{client, context, serde_transport, server::{self, Channel}, tokio_serde::formats::Bincode};
 use tokio::{net::{TcpListener, TcpStream}, time::sleep};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
@@ -42,7 +43,7 @@ pub async fn start_rpc(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Syn
 }
 
 // this should be in another dedicated client, but for testing purposes:
-pub async fn mining(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>> {
+pub async fn mining() -> Result<(), Box<dyn Error + Send + Sync>> {
     // connect to node
     let stream = TcpStream::connect("127.0.0.1:7000").await?;
     let framed = Framed::new(stream, LengthDelimitedCodec::new());
@@ -58,15 +59,20 @@ pub async fn mining(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>>
         loop {
             block.hash = block.calculate_hash();
             // println!("current hash: {:?} vs target: {:?}", block.hash, node.consensus.read().await.state.difficulty.target);
-            if node.consensus.read().await.verify_valid_block(node.blockchain.read().await.last_block(), &block) {
-                println!("mined new block: {:?}", block);
-                (*node).clone().push_block(block).await;
+            if BigUint::from_bytes_be(&block.hash.0) <= job.difficulty {
+                println!("Found valid hash: {:?}", block.hash);
+                // Submit to node - node will re-verify!
+                let accepted = client.submit_block(context::current(), block.clone()).await?;
+                if accepted {
+                    println!("✓ Block accepted!");
+                } else {
+                    println!("✗ Block rejected by node");
+                }
                 break;
             }
             block.nonce += 1;   
         }
         println!("time to find new block: {}", (Utc::now() - start).as_seconds_f32());
-        println!("total time windows: {}", (Utc::now() - node.consensus.read().await.state.start_window_time).as_seconds_f32());
     }
 }
 
@@ -74,7 +80,7 @@ pub async fn mining(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>>
 pub async fn creating_tx(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut id = 0;
     loop {
-        let new_tx = Transaction::new(id.to_string(), Address([0; 32]), None, 0, 0, None, None, Signature([0; 32]));
+        let new_tx = Transaction::new(id.to_string(), Address([0; 32]), None, 0, 0, None, Some("hello worl".as_bytes().to_vec()), Signature([0; 32]));
         node.create_tx(new_tx).await;
         println!("created new tx");
         id += 1;
@@ -114,9 +120,8 @@ pub fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {
             });
 
             // Spawn mining loop
-            let node_mining = node_clone.clone();
             tokio::spawn(async move {
-                if let Err(why) = mining(node_mining).await {
+                if let Err(why) = mining().await {
                     eprintln!("Mining failed: {:?}", why);
                 }
             });

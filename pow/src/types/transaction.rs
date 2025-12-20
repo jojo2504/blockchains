@@ -8,14 +8,14 @@ use crate::types::subtypes::{Address, Signature};
 #[derive(Clone, Debug, Encode, Decode, Hash, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Transaction {
     pub txid: String,
-    from: Address,
-    to: Option<Address>,   // recipient, None if just a message
-    nonce: u64,
-    fee: u64,
-    size: usize,
-    amount: Option<u64>,   // None if just a message
-    message: Option<Vec<u8>>,
-    signature: Signature,
+    pub from: Address,
+    pub to: Option<Address>,   // recipient, None if just a message
+    pub nonce: u64,
+    pub fee: u64,
+    pub size: usize,
+    pub amount: Option<u64>,   // None if just a message
+    pub message: Option<Vec<u8>>,
+    pub signature: Signature,
 }
 
 impl fmt::Display for Transaction {

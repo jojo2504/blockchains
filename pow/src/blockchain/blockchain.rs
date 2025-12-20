@@ -2,8 +2,6 @@ use crate::{consensus::consensus::ADJUSTMENT_INTERVAL, types::block::Block};
 use core::fmt;
 
 /// The blockchain struct is a singleton
-/// 
-/// `difficulty` represents the number of zeroes we want at the beginning of each block's hash
 pub struct Blockchain {
     pub blocks: Vec<Block>,
 }
