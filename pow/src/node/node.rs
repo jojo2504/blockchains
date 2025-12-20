@@ -1,5 +1,5 @@
 use std::{collections::HashSet, error::Error, os::unix::net::SocketAddr, sync::Arc};
-use chrono::{Date, Utc};
+use chrono::Utc;
 use futures::StreamExt;
 use libp2p::{Multiaddr, PeerId, noise, ping, swarm::SwarmEvent, tcp, yamux};
 use num_bigint::BigUint;
@@ -7,7 +7,7 @@ use tarpc::context;
 use tokio::sync::{Mutex, RwLock, broadcast};
 use tracing_subscriber::EnvFilter;
 
-use crate::{blockchain::blockchain::Blockchain, consensus::{self, consensus::{ADJUSTMENT_INTERVAL, Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob}};
+use crate::{blockchain::blockchain::Blockchain, consensus::{self, consensus::{ADJUSTMENT_INTERVAL, Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob, transaction::Transaction}};
 
 #[tarpc::service]
 pub trait NodeRpc {
@@ -28,7 +28,7 @@ impl NodeRpc for NodeRpcServer {
         MiningJob {
             parent_block_hash: last_block.hash,
             difficulty: node.consensus.read().await.state.difficulty.target.clone(),
-            transactions: node.mempool.read().await.pool.to_vec(),
+            transactions: node.mempool.read().await.pool.clone().into_iter().collect(),
             target_block_time: TARGET_BLOCK_TIME,
             height: node.blockchain.read().await.blocks.len() as u64,
         }
@@ -149,6 +149,15 @@ impl Node {
     }
 
     pub async fn push_block(&mut self, block: Block) {
+        println!("pushing new block");
+        {
+            let mut mempool_write = self.mempool.write().await;
+            for transaction in &block.transactions {
+                mempool_write.pool.remove(transaction);
+                println!("removing tx: {} from mempool", transaction);
+            }
+        }
+
         self.blockchain.write().await.blocks.push(block.clone());
         println!("current blockchain height: {}", self.blockchain.read().await.blocks.len());
 
@@ -164,5 +173,9 @@ impl Node {
             } // Write lock is dropped here
             println!("new difficulty: {:?}", self.consensus.read().await.state.difficulty.target);
         }
+    }
+
+    pub async fn create_tx(self: &Arc<Self>, tx: Transaction) {
+        self.mempool.write().await.pool.insert(tx);
     }
 }

@@ -6,15 +6,15 @@ mod consensus;
 mod node;
 mod blockchain_viewer;
 
-use std::{error::Error, sync::Arc};
+use std::{error::Error, sync::Arc, time::Duration};
 
 use chrono::Utc;
 use futures::{StreamExt, future::ok};
 use tarpc::{client, context, serde_transport, server::{self, Channel}, tokio_serde::formats::Bincode};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::{net::{TcpListener, TcpStream}, time::sleep};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::{blockchain_viewer::BlockchainViewer, node::node::{Node, NodeEvent, NodeRpc, NodeRpcClient, NodeRpcServer}, types::block::Block};
+use crate::{blockchain_viewer::BlockchainViewer, node::node::{Node, NodeEvent, NodeRpc, NodeRpcClient, NodeRpcServer}, types::{block::Block, subtypes::{Address, Signature}, transaction::Transaction}};
 
 pub async fn start_rpc(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>> {
     let listener = TcpListener::bind("127.0.0.1:7000").await?;
@@ -70,6 +70,18 @@ pub async fn mining(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>>
     }
 }
 
+/// for testing purposes, will loop forever creating tx every x seconds
+pub async fn creating_tx(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut id = 0;
+    loop {
+        let new_tx = Transaction::new(id.to_string(), Address([0; 32]), None, 0, 0, None, None, Signature([0; 32]));
+        node.create_tx(new_tx).await;
+        println!("created new tx");
+        id += 1;
+        sleep(Duration::from_secs(1)).await;
+    }
+} 
+
 pub fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {
     // Create node
     let node = Arc::new(Node::new());
@@ -106,6 +118,14 @@ pub fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {
             tokio::spawn(async move {
                 if let Err(why) = mining(node_mining).await {
                     eprintln!("Mining failed: {:?}", why);
+                }
+            });
+
+            // Create random tx - use same runtime as other tasks
+            let node_tx = node_clone.clone();
+            tokio::spawn(async move {
+                if let Err(why) = creating_tx(node_tx).await {
+                    eprintln!("creating tx failed: {:?}", why);
                 }
             });
 

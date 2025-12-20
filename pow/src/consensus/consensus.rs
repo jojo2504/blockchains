@@ -49,8 +49,11 @@ impl Consensus {
 
         // verify that the block hash is indeed the right one
         if block.calculate_hash() != block.hash {
+            println!("block hash is bad ?");
             return false;
         }
+
+        println!("block hash is good");
 
         // verify block new pointer
         if block.previous_hash != Some(last_block.hash) {

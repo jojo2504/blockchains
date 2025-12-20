@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::subtypes::{Address, Signature};
 
-#[derive(Clone, Debug, Encode, Decode, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Encode, Decode, Hash, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Transaction {
     pub txid: String,
     from: Address,
@@ -43,7 +43,6 @@ impl Transaction {
         to: Option<Address>,
         nonce: u64,
         fee: u64,
-        size: usize,
         amount: Option<u64>,
         message: Option<Vec<u8>>,
         signature: Signature,
@@ -54,7 +53,7 @@ impl Transaction {
             to,
             nonce,
             fee,
-            size,
+            size: 0,
             amount,
             message,
             signature,

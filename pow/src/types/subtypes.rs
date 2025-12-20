@@ -23,7 +23,7 @@ impl Address {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize)]
-pub struct Signature ([u8; 32]);
+pub struct Signature (pub [u8; 32]);
 
 
 

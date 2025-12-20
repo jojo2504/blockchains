@@ -44,21 +44,21 @@ impl Block {
     }
 
     pub fn calculate_hash(&self) -> Hash256 {
-        let mut raw = String::new();
-        for tx in &self.transactions {
-            raw.push_str(&format!("{}", tx));
+        let mut hasher = Sha256::new();
+        
+        // Hash only the essential header fields
+        hasher.update(self.merkle_root.0);  // ← Use pre-computed merkle root!
+        hasher.update(self.nonce.to_le_bytes());
+        
+        if let Some(previous_hash) = self.previous_hash {
+            hasher.update(previous_hash.0);
         }
-        raw.push_str(&format!("{}", self.nonce));
-
-        match self.previous_hash {
-            Some(previous_hash) => raw.push_str(&format!("{:?}", previous_hash)),
-            None => (),
-        }
-
-        let hasher = Sha256::digest(raw);
-        let hash = hasher.as_chunks::<32>().0[0];
-
-        Hash256(hash)
+        
+        let hash = hasher.finalize();
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&hash);
+        
+        Hash256(bytes)
     }
 
     pub fn hash_transaction(tx: &Transaction) -> Hash256 {

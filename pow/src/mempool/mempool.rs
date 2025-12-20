@@ -1,8 +1,10 @@
+use std::collections::HashSet;
+
 use crate::types::transaction::Transaction;
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 pub struct Mempool {
-    pub pool: Vec<Transaction>
+    pub pool: HashSet<Transaction>
 }
 
 impl Mempool {
@@ -11,7 +13,7 @@ impl Mempool {
     }
 
     pub fn insert(&mut self, tx: Transaction) {
-        self.pool.push(tx);
+        self.pool.insert(tx);
     }
 
     pub fn clear(&mut self) {
