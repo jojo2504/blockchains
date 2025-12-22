@@ -9,7 +9,7 @@ mod blockchain_viewer;
 use std::{error::Error, sync::Arc, time::Duration};
 
 use chrono::Utc;
-use futures::{StreamExt, future::ok};
+use futures::StreamExt;
 use num_bigint::BigUint;
 use tarpc::{client, context, serde_transport, server::{self, Channel}, tokio_serde::formats::Bincode};
 use tokio::{net::{TcpListener, TcpStream}, time::sleep};
@@ -91,7 +91,7 @@ pub async fn creating_tx(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + S
         let from = Address(from_addr);
         
         // Random to address (80% chance of having recipient, 20% message only)
-        let to = if rng.gen_bool(0.8) {
+        let to = if rng.random_bool(0.8) {
             let mut to_addr = [0u8; 32];
             rng.fill(&mut to_addr);
             Some(Address(to_addr))
@@ -100,20 +100,20 @@ pub async fn creating_tx(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + S
         };
         
         // Random nonce
-        let nonce = rng.gen_range(0..1000000);
+        let nonce = rng.random_range(0..1000000);
         
         // Random fee (between 100 and 10000)
-        let fee = rng.gen_range(100..10000);
+        let fee = rng.random_range(100..10000);
         
         // Random amount (if has recipient)
         let amount = if to.is_some() {
-            Some(rng.gen_range(1000..1000000))
+            Some(rng.random_range(1000..1000000))
         } else {
             None
         };
         
         // Random message (50% chance)
-        let message = if rng.gen_bool(0.5) {
+        let message = if rng.random_bool(0.5) {
             let messages = vec![
                 "hello world",
                 "test transaction",
@@ -124,7 +124,7 @@ pub async fn creating_tx(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + S
                 "mining block",
                 "validating tx",
             ];
-            let msg = messages[rng.gen_range(0..messages.len())];
+            let msg = messages[rng.random_range(0..messages.len())];
             Some(msg.as_bytes().to_vec())
         } else {
             None
@@ -153,7 +153,7 @@ pub async fn creating_tx(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + S
         id += 1;
         
         // Random delay between 100ms and 2 seconds
-        let delay_ms = rng.gen_range(100..2000);
+        let delay_ms = rng.random_range(100..2000);
         sleep(Duration::from_millis(delay_ms)).await;
     }
 }

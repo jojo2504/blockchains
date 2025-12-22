@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use num_bigint::BigUint;
 
-use crate::{blockchain::blockchain::Blockchain, consensus::difficulty::Difficulty, types::block::Block};
+use crate::{consensus::difficulty::Difficulty, types::block::Block};
 
 pub const TARGET_BLOCK_TIME: u64 = 4u64; // in seconds
 pub const ADJUSTMENT_INTERVAL: u64 = 5u64; // number of blocks between difficulty recalculation

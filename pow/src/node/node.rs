@@ -1,4 +1,4 @@
-use std::{collections::HashSet, error::Error, os::unix::net::SocketAddr, sync::{Arc, OnceLock}};
+use std::{collections::HashSet, error::Error, os::unix::net::SocketAddr, sync::Arc};
 use chrono::Utc;
 use futures::StreamExt;
 use libp2p::{Multiaddr, PeerId, noise, ping, swarm::SwarmEvent, tcp, yamux};
@@ -7,7 +7,7 @@ use tarpc::context;
 use tokio::sync::{Mutex, RwLock, broadcast};
 use tracing_subscriber::EnvFilter;
 
-use crate::{blockchain::blockchain::Blockchain, consensus::{self, consensus::{ADJUSTMENT_INTERVAL, Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob, transaction::Transaction}};
+use crate::{blockchain::blockchain::Blockchain, consensus::{consensus::{ADJUSTMENT_INTERVAL, Consensus, State, TARGET_BLOCK_TIME}, difficulty::Difficulty}, mempool::mempool::Mempool, types::{block::Block, mining_job::MiningJob, transaction::Transaction}};
 
 #[tarpc::service]
 pub trait NodeRpc {

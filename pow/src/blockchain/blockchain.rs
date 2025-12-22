@@ -1,4 +1,4 @@
-use crate::{consensus::consensus::ADJUSTMENT_INTERVAL, types::block::Block};
+use crate::types::block::Block;
 use core::fmt;
 
 /// The blockchain struct is a singleton
