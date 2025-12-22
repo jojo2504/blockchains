@@ -11,7 +11,7 @@ pub struct Transaction {
     pub from: Address,
     pub to: Option<Address>,   // recipient, None if just a message
     pub nonce: u64,
-    pub fee: u64,
+    pub fee: u64, // smallest unit of the native blockchain coin
     pub size: usize,
     pub amount: Option<u64>,   // None if just a message
     pub message: Option<Vec<u8>>,

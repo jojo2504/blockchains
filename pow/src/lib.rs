@@ -77,16 +77,162 @@ pub async fn mining() -> Result<(), Box<dyn Error + Send + Sync>> {
 }
 
 /// for testing purposes, will loop forever creating tx every x seconds
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
+
 pub async fn creating_tx(node: Arc<Node>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut rng = StdRng::seed_from_u64(rand::random());
     let mut id = 0;
+    
     loop {
-        let new_tx = Transaction::new(id.to_string(), Address([0; 32]), None, 0, 0, None, Some("hello worl".as_bytes().to_vec()), Signature([0; 32]));
+        // Random from address
+        let mut from_addr = [0u8; 32];
+        rng.fill(&mut from_addr);
+        let from = Address(from_addr);
+        
+        // Random to address (80% chance of having recipient, 20% message only)
+        let to = if rng.gen_bool(0.8) {
+            let mut to_addr = [0u8; 32];
+            rng.fill(&mut to_addr);
+            Some(Address(to_addr))
+        } else {
+            None
+        };
+        
+        // Random nonce
+        let nonce = rng.gen_range(0..1000000);
+        
+        // Random fee (between 100 and 10000)
+        let fee = rng.gen_range(100..10000);
+        
+        // Random amount (if has recipient)
+        let amount = if to.is_some() {
+            Some(rng.gen_range(1000..1000000))
+        } else {
+            None
+        };
+        
+        // Random message (50% chance)
+        let message = if rng.gen_bool(0.5) {
+            let messages = vec![
+                "hello world",
+                "test transaction",
+                "blockchain rocks",
+                "random message",
+                "decentralized network",
+                "consensus achieved",
+                "mining block",
+                "validating tx",
+            ];
+            let msg = messages[rng.gen_range(0..messages.len())];
+            Some(msg.as_bytes().to_vec())
+        } else {
+            None
+        };
+        
+        // Random signature
+        let mut sig = [0u8; 32];
+        rng.fill(&mut sig);
+        let signature = Signature(sig);
+        
+        let new_tx = Transaction::new(
+            id.to_string(),
+            from,
+            to,
+            nonce,
+            fee,
+            amount,
+            message.clone(),
+            signature,
+        );
+        
         node.create_tx(new_tx).await;
-        println!("created new tx");
+        println!("Created tx #{}: fee={}, amount={:?}, has_message={}", 
+                 id, fee, amount, message.is_some());
+        
         id += 1;
-        sleep(Duration::from_secs(1)).await;
+        
+        // Random delay between 100ms and 2 seconds
+        let delay_ms = rng.gen_range(100..2000);
+        sleep(Duration::from_millis(delay_ms)).await;
     }
-} 
+}
+
+// Bonus: Generate multiple random transactions at once
+pub async fn creating_batch_tx(
+    node: Arc<Node>,
+    batch_size: usize,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut rng = StdRng::seed_from_u64(rand::random());
+    let mut id = 0;
+    
+    loop {
+        let mut transactions = Vec::new();
+        
+        // Random batch size between batch_size and batch_size * 3
+        let actual_batch = rng.random_range(batch_size..(batch_size * 3));
+        
+        for _ in 0..actual_batch {
+            let mut from_addr = [0u8; 32];
+            rng.fill(&mut from_addr);
+            
+            // Always have a recipient
+            
+            // 50% money transfer, 50% message
+            let is_money_transfer = rng.random_bool(0.5);
+            
+            let mut to = None;
+            let (amount, message) = if is_money_transfer {
+                // Money transfer - no message
+                let mut to_addr = [0u8; 32];
+                rng.fill(&mut to_addr);
+                to = Some(Address(to_addr));
+                (Some(rng.random_range(1000..1000000)), None)
+            } else {
+                // Message only - no amount
+                let messages = vec![
+                    "hello world",
+                    "test transaction",
+                    "blockchain rocks",
+                    "random message",
+                    "decentralized network",
+                    "consensus achieved",
+                    "mining block",
+                    "validating tx",
+                    "gm ser",
+                    "wagmi",
+                ];
+                let msg = messages[rng.random_range(0..messages.len())];
+                (None, Some(msg.as_bytes().to_vec()))
+            };
+            
+            let tx = Transaction::new(
+                id.to_string(),
+                Address(from_addr),
+                to,
+                rng.random_range(0..1000000),
+                rng.random_range(100..10000),
+                amount,
+                message,
+                {
+                    let mut sig = [0u8; 32];
+                    rng.fill(&mut sig);
+                    Signature(sig)
+                },
+            );
+            
+            transactions.push(tx);
+            id += 1;
+        }
+        
+        for tx in transactions {
+            node.create_tx(tx).await;
+        }
+        
+        println!("Created batch of {} transactions", actual_batch);
+        sleep(Duration::from_secs(5)).await;
+    }
+}
 
 pub fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {
     // Create node
@@ -129,7 +275,7 @@ pub fn start_node() -> Result<(), Box<dyn Error + Send + Sync>> {
             // Create random tx - use same runtime as other tasks
             let node_tx = node_clone.clone();
             tokio::spawn(async move {
-                if let Err(why) = creating_tx(node_tx).await {
+                if let Err(why) = creating_batch_tx(node_tx, 5).await {
                     eprintln!("creating tx failed: {:?}", why);
                 }
             });
